@@ -44,6 +44,7 @@ import { HNSHA } from './HNSHA.js';
 import { HNSHK } from './HNSHK.js';
 import { HNVSD } from './HNVSD.js';
 import { HNVSK } from './HNVSK.js';
+import { HIDMB, HIDMBS, HKDMB } from './scheduledDirectDebits.js';
 
 const registry = new Map<string, SegmentDefinition>();
 
@@ -94,6 +95,9 @@ export function registerSegments() {
 	registerSegmentDefinition(new HISPAS());
 	registerSegmentDefinition(new HKDSE());
 	registerSegmentDefinition(new HIDSES());
+	registerSegmentDefinition(new HKDMB());
+	registerSegmentDefinition(new HIDMB());
+	registerSegmentDefinition(new HIDMBS());
 	registerSegmentDefinition(new HKDME());
 	registerSegmentDefinition(new HIDMES());
 	registerSegmentDefinition(new HKBSE());

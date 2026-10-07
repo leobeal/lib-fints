@@ -27,6 +27,10 @@ import {
 	PortfolioInteraction,
 	type PortfolioResponse,
 } from './interactions/portfolioInteraction.js';
+import {
+	ScheduledDirectDebitsInteraction,
+	type ScheduledDirectDebitsResponse,
+} from './interactions/scheduledDirectDebitsInteraction.js';
 import { StatementInteractionCAMT } from './interactions/statementInteractionCAMT.js';
 import { StatementInteractionMT940 } from './interactions/statementInteractionMT940.js';
 import { DKKKU } from './segments/DKKKU.js';
@@ -37,6 +41,7 @@ import { HKIDN } from './segments/HKIDN.js';
 import { HKKAZ } from './segments/HKKAZ.js';
 import { HKSAL } from './segments/HKSAL.js';
 import { HKWPD } from './segments/HKWPD.js';
+import { HKDMB } from './segments/scheduledDirectDebits.js';
 import type { TanMethod } from './tanMethod.js';
 
 export interface SynchronizeResponse extends InitResponse {}
@@ -486,6 +491,48 @@ export class FinTSClient {
 			tanReference,
 			tan,
 		);
+	}
+
+	/**
+	 * Checks if the bank lists the collective direct debits it holds for a later execution date
+	 * @param account when given, checks the account rather than the bank as a whole
+	 */
+	canGetScheduledDirectDebits(account?: AccountRef): boolean {
+		return account
+			? this.config.isAccountTransactionSupported(account, HKDMB.Id)
+			: this.config.isTransactionSupported(HKDMB.Id);
+	}
+
+	/**
+	 * Fetches the collective SEPA direct debits the bank holds for the given account
+	 * and has not executed yet: for each its id at the bank, the day it was submitted,
+	 * the day it will be executed, the number of debits and their total.
+	 *
+	 * It is how to find out what became of a submission whose answer never arrived.
+	 * @param account - the account the debits are collected on
+	 * @param from - an optional first execution date; ignored by a bank that takes no period
+	 * @param to - an optional last execution date
+	 */
+	async getScheduledDirectDebits(
+		account: AccountRef,
+		from?: Date,
+		to?: Date,
+	): Promise<ScheduledDirectDebitsResponse> {
+		return await this.startCustomerOrderInteraction(
+			new ScheduledDirectDebitsInteraction(account, from, to),
+		);
+	}
+
+	/**
+	 * Continues fetching the scheduled direct debits when a TAN is required
+	 * @param tanReference The TAN reference provided in the first call's response
+	 * @param tan The TAN entered by the user, can be omitted if a decoupled TAN method is used
+	 */
+	async getScheduledDirectDebitsWithTan(
+		tanReference: string,
+		tan?: string,
+	): Promise<ScheduledDirectDebitsResponse> {
+		return await this.continueCustomerInteractionWithTan([HKDMB.Id], tanReference, tan);
 	}
 
 	private lastResponse(responses: Map<string, ClientResponse>, segIds: string[]): ClientResponse {

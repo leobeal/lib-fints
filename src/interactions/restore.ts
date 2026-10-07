@@ -4,6 +4,7 @@ import { BalanceInteraction } from './balanceInteraction.js';
 import type { CustomerInteraction, InteractionSnapshot } from './customerInteraction.js';
 import { DirectDebitInteraction } from './directDebitInteraction.js';
 import { InitDialogInteraction } from './initDialogInteraction.js';
+import { ScheduledDirectDebitsInteraction } from './scheduledDirectDebitsInteraction.js';
 import { StatementInteractionCAMT } from './statementInteractionCAMT.js';
 import { StatementInteractionMT940 } from './statementInteractionMT940.js';
 
@@ -28,6 +29,8 @@ export function restoreInteraction(
 			return new StatementInteractionCAMT(account, date(state.from), date(state.to));
 		case 'statementsMt940':
 			return new StatementInteractionMT940(account, date(state.from), date(state.to));
+		case 'scheduledDirectDebits':
+			return new ScheduledDirectDebitsInteraction(account, date(state.from), date(state.to));
 		case 'balance':
 			return new BalanceInteraction(account);
 		default:

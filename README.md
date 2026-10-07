@@ -303,6 +303,12 @@ This is for a caller that has something to do between the login and the order, s
 
 A `BankExchangeError` is thrown for everything that goes wrong once a message has been handed to the network: the bank could not be reached, answered with an HTTP error, or sent something unreadable. The bank may have carried the order out; do not send it again as if nothing had happened. Every other error is thrown before anything was sent.
 
+### What the bank holds
+
+`getScheduledDirectDebits(account)` lists the collective direct debits the bank holds for a later execution date and has not executed yet: for each its id at the bank, the day it was submitted, the day it will be executed, the number of debits and their total. An optional period narrows it by execution date. `canGetScheduledDirectDebits()` says whether the bank offers the list at all; many do not.
+
+It is the way to find out what became of a submission whose answer never arrived: an order of the same total, count and execution date in the list is at the bank.
+
 ### Putting a dialog away
 
 `client.suspend()` returns the current dialog as plain data and `client.resume(snapshot)` takes it up again, also in another process. It is for apps the system may stop while the customer approves an order in a banking app. Continue a waiting transaction with its `...WithTan()` method and `snapshot.tanReference`. The snapshot holds no PIN, but it holds a direct debit file that waits for its approval.

@@ -23,6 +23,10 @@ export type {
 } from './interactions/electronicStatementInteraction.js';
 export type { InitResponse } from './interactions/initDialogInteraction.js';
 export type { PortfolioResponse } from './interactions/portfolioInteraction.js';
+export type {
+	ScheduledDirectDebit,
+	ScheduledDirectDebitsResponse,
+} from './interactions/scheduledDirectDebitsInteraction.js';
 export * from './message.js';
 export * from './mt535parser.js';
 export * from './mt940parser.js';
