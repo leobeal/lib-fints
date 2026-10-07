@@ -3,6 +3,7 @@ import type { SegmentDefinition } from '../segmentDefinition.js';
 import { UNKNOW } from '../unknownSegment.js';
 import { DIKKU } from './DIKKU.js';
 import { DKKKU } from './DKKKU.js';
+import { HIBMES, HIBSES, HIDMES, HIDSES, HKBME, HKBSE, HKDME, HKDSE } from './directDebit.js';
 import { HIBPA } from './HIBPA.js';
 import { HICAZ } from './HICAZ.js';
 import { HICAZS } from './HICAZS.js';
@@ -91,6 +92,14 @@ export function registerSegments() {
 	registerSegmentDefinition(new HKSPA());
 	registerSegmentDefinition(new HISPA());
 	registerSegmentDefinition(new HISPAS());
+	registerSegmentDefinition(new HKDSE());
+	registerSegmentDefinition(new HIDSES());
+	registerSegmentDefinition(new HKDME());
+	registerSegmentDefinition(new HIDMES());
+	registerSegmentDefinition(new HKBSE());
+	registerSegmentDefinition(new HIBSES());
+	registerSegmentDefinition(new HKBME());
+	registerSegmentDefinition(new HIBMES());
 	registerSegmentDefinition(new UNKNOW());
 	registerSegmentDefinition(new PARTED());
 }

@@ -10,10 +10,12 @@ export * from './bpd.js';
 export * from './client.js';
 export * from './config.js';
 export * from './dialog.js';
+export * from './directDebitFile.js';
 export * from './electronicStatement.js';
 export * from './httpClient.js';
 export type { AccountBalanceResponse } from './interactions/balanceInteraction.js';
 export type { ClientResponse, StatementResponse } from './interactions/customerInteraction.js';
+export type { DirectDebitResponse } from './interactions/directDebitInteraction.js';
 export type {
 	ElectronicStatementOptions,
 	ElectronicStatementResponse,

@@ -1,6 +1,7 @@
 import { type AccountRef, describeAccount } from './bankAccount.js';
 import { FinTSConfig } from './config.js';
 import { Dialog } from './dialog.js';
+import { readDirectDebitFile } from './directDebitFile.js';
 import {
 	type AccountBalanceResponse,
 	BalanceInteraction,
@@ -11,6 +12,11 @@ import type {
 	CustomerOrderInteraction,
 	StatementResponse,
 } from './interactions/customerInteraction.js';
+import {
+	DirectDebitInteraction,
+	type DirectDebitResponse,
+	directDebitOrder,
+} from './interactions/directDebitInteraction.js';
 import {
 	ElectronicStatementInteraction,
 	type ElectronicStatementOptions,
@@ -24,6 +30,7 @@ import {
 import { StatementInteractionCAMT } from './interactions/statementInteractionCAMT.js';
 import { StatementInteractionMT940 } from './interactions/statementInteractionMT940.js';
 import { DKKKU } from './segments/DKKKU.js';
+import { HKBME, HKBSE, HKDME, HKDSE } from './segments/directDebit.js';
 import { HKCAZ } from './segments/HKCAZ.js';
 import { HKEKA } from './segments/HKEKA.js';
 import { HKIDN } from './segments/HKIDN.js';
@@ -393,6 +400,65 @@ export class FinTSClient {
 		} catch {
 			// see above
 		}
+	}
+
+	/**
+	 * Checks if the bank supports submitting SEPA direct debits in general or for the given account when provided
+	 * @param account when provided, checks if the account may submit direct debits
+	 * @param scheme the scheme of the debits; company debits (B2B) are a separate order at the bank
+	 */
+	canSendDirectDebit(account?: AccountRef, scheme: 'CORE' | 'COR1' | 'B2B' = 'CORE'): boolean {
+		const orders = scheme === 'B2B' ? [HKBSE.Id, HKBME.Id] : [HKDSE.Id, HKDME.Id];
+
+		return orders.some((order) =>
+			account
+				? this.config.isAccountTransactionSupported(account, order)
+				: this.config.isTransactionSupported(order),
+		);
+	}
+
+	/**
+	 * Submits a pain.008 file of SEPA direct debits for the given account.
+	 *
+	 * The file is the caller's and is sent as it is; its schema, scheme (CORE, COR1 or
+	 * B2B), number of debits and control sum are read from it and decide the order it
+	 * goes out as.
+	 *
+	 * A bank asks for a TAN or an approval before it accepts the file. Until that is
+	 * given the file is at the bank but not accepted; `success` with
+	 * `requiresTan=false` is the acceptance.
+	 *
+	 * @param account - the creditor's account, must be an account available in the config.bankingInformation.upd.bankAccounts
+	 * @param painXml - the pain.008 file
+	 * @param options.collective - submit a file with a single debit as a collective order too, where the bank offers one and the file states its control sum
+	 */
+	async sendDirectDebit(
+		account: AccountRef,
+		painXml: string,
+		options: { collective?: boolean } = {},
+	): Promise<DirectDebitResponse> {
+		const order = directDebitOrder(
+			this.config,
+			readDirectDebitFile(painXml),
+			options.collective ?? false,
+		);
+
+		return await this.startCustomerOrderInteraction(
+			new DirectDebitInteraction(account, painXml, order),
+		);
+	}
+
+	/**
+	 * Continues the direct debit submission when a TAN is required
+	 * @param tanReference The TAN reference provided in the first call's response
+	 * @param tan The TAN entered by the user, can be omitted if a decoupled TAN method is used
+	 */
+	async sendDirectDebitWithTan(tanReference: string, tan?: string): Promise<DirectDebitResponse> {
+		return await this.continueCustomerInteractionWithTan(
+			[HKDSE.Id, HKDME.Id, HKBSE.Id, HKBME.Id],
+			tanReference,
+			tan,
+		);
 	}
 
 	private lastResponse(responses: Map<string, ClientResponse>, segIds: string[]): ClientResponse {
