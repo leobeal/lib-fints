@@ -21,7 +21,7 @@ In order to communicate with banks via the FinTS protocol you have to register a
 
 ### Runtime Environment
 
-The library is written in Typescript and compiled to the ES2022 Javascript language standard which means a minimum Node version of 18 is required.
+The library is written in Typescript and compiled to the ES2022 Javascript language standard which means a minimum Node version of 18 is required. It uses no Node APIs — only `fetch`, `btoa`/`atob` and `TextEncoder`/`TextDecoder`.
 
 **A note about Browsers:**
 In theory the library is compatible with a browser environment, but communicating directly from the front-end with a bank server will, apart from security considerations, most likely fail because of the imposed CORS restrictions from web browsers and the lack of corresponding CORS headers in bank server responses.
@@ -205,6 +205,7 @@ The following table shows all transactions supported by the FinTSClient interfac
 | **Portfolio**              | `getPortfolio(account: AccountRef, currency?, priceQuality?, maxEntries?)` | Fetches securities portfolio information for depot accounts                  | HKWPD                      | ✓           | ✓                |
 | **Credit Card Statements** | `getCreditCardStatements(account: AccountRef, from?)`                 | Fetches credit card statements for credit card accounts                         | DKKKU                      | ✓           | ✓                |
 | **Electronic Statements**  | `getElectronicStatements(account: AccountRef, options?)`              | Fetches the statement document from the electronic mailbox, usually a PDF       | HKEKA                      | ✓           | ✓                |
+| **SEPA Direct Debit**      | `sendDirectDebit(account: AccountRef, painXml, options?)`             | Submits a pain.008 file of direct debits, single or collective, CORE/COR1 or B2B | HKDSE, HKDME, HKBSE, HKBME | ✓           | ✓                |
 | **TAN Method Selection**   | `selectTanMethod(tanMethodId)`                                       | Selects a TAN method by ID from available methods                               | -                          | ❌          | ❌               |
 | **TAN Media Selection**    | `selectTanMedia(tanMediaName)`                                       | Selects a specific TAN media device by name                                     | -                          | ❌          | ❌               |
 
@@ -270,14 +271,51 @@ Every transaction that supports TAN authentication has a corresponding `*WithTan
 - `getAccountStatementsWithTan(tanReference, tan?)`
 - `getPortfolioWithTan(tanReference, tan?)`
 - `getCreditCardStatementsWithTan(tanReference, tan?)`
+- `getElectronicStatementsWithTan(tanReference, tan?)`
+- `sendDirectDebitWithTan(tanReference, tan?)`
+- `loginWithTan(tanReference, tan?)`
 
 The `tan` parameter can be omitted when using decoupled TAN methods.
+
+### Several transactions in one dialog
+
+Every transaction method opens a dialog, carries the transaction out and ends the dialog again. `login()` opens a dialog and keeps it: the transactions that follow run in it until `logout()`.
+
+```typescript
+const login = await client.login(); // may require a TAN: loginWithTan()
+// the bank has accepted the PIN; nothing else was sent yet
+let response = await client.sendDirectDebit(account, painXml);
+while (response.success && response.requiresTan) {
+  response = await client.sendDirectDebitWithTan(response.tanReference!, tan);
+}
+await client.logout();
+```
+
+This is for a caller that has something to do between the login and the order, such as recording that a file is about to be sent before it is.
+
+### Submitting direct debits
+
+`sendDirectDebit()` takes a pain.008 file and sends it as it is. Its schema, scheme (CORE, COR1 or B2B), number of debits and control sum are read from the file and decide the order: a file with several debits goes out as a collective order, one with a single debit as a single order, or as a collective one with `{ collective: true }`. A schema the bank does not list is refused before anything is sent.
+
+`success` with `requiresTan=false` is the bank's acceptance. Until then the file is at the bank, unapproved.
+
+### When the outcome is not known
+
+A `BankExchangeError` is thrown for everything that goes wrong once a message has been handed to the network: the bank could not be reached, answered with an HTTP error, or sent something unreadable. The bank may have carried the order out; do not send it again as if nothing had happened. Every other error is thrown before anything was sent.
+
+### Putting a dialog away
+
+`client.suspend()` returns the current dialog as plain data and `client.resume(snapshot)` takes it up again, also in another process. It is for apps the system may stop while the customer approves an order in a banking app. Continue a waiting transaction with its `...WithTan()` method and `snapshot.tanReference`. The snapshot holds no PIN, but it holds a direct debit file that waits for its approval.
+
+### Statements as the bank sent them
+
+A `StatementResponse` carries, next to the parsed `statements`, the `format` (`camt` or `mt940`) and the `documents` as text: one camt document per entry, or the MT940 stream as one.
 
 ## Limitations
 
 - Only FinTS 3.0 is supported (older versions may not work)
 - Only PIN/TAN security is supported (including decoupled TAN methods)
-- No support for payment transactions or transfers yet
+- Of the payment transactions only SEPA direct debits are supported; no transfers yet
 
 Implementing further transactions should be straight forward and contributions are highly appreciated
 
