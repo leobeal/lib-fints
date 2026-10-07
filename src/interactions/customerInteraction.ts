@@ -52,10 +52,27 @@ export interface StatementResponse extends ClientResponse {
 	documents?: string[];
 }
 
+/**
+ * What it takes to build an interaction again: its kind and the arguments it was
+ * made with, as plain data that survives JSON.
+ */
+export type InteractionSnapshot = {
+	kind: string;
+	state: Record<string, unknown>;
+};
+
 export abstract class CustomerInteraction {
 	dialog?: Dialog;
 
 	constructor(public segId: string) {}
+
+	/**
+	 * The interaction as plain data, for a dialog that is put away while it waits for
+	 * an approval. Undefined for an interaction that cannot be taken up again.
+	 */
+	snapshot(): InteractionSnapshot | undefined {
+		return undefined;
+	}
 
 	getSegments(config: FinTSConfig): Segment[] {
 		return this.createSegments(config);

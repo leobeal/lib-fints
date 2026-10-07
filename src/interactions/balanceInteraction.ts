@@ -19,6 +19,10 @@ export class BalanceInteraction extends CustomerOrderInteraction {
 		super(HKSAL.Id, HISAL.Id);
 	}
 
+	snapshot() {
+		return { kind: 'balance', state: { account: this.account } };
+	}
+
 	createSegments(init: FinTSConfig): Segment[] {
 		const bankAccount = init.getBankAccount(this.account);
 		if (!init.isAccountTransactionSupported(this.account, this.segId)) {

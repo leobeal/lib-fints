@@ -78,6 +78,14 @@ export class DirectDebitInteraction extends CustomerOrderInteraction {
 		this.file = readDirectDebitFile(painXml);
 	}
 
+	/** Carries the file: keep the snapshot as carefully as the file itself. */
+	snapshot() {
+		return {
+			kind: 'directDebit',
+			state: { account: this.account, painXml: this.painXml, orderId: this.segId },
+		};
+	}
+
 	createSegments(config: FinTSConfig): Segment[] {
 		const bankAccount = config.getBankAccount(this.account);
 		const version = config.getMaxSupportedTransactionVersion(this.segId);

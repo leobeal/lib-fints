@@ -37,6 +37,10 @@ export class InitDialogInteraction extends CustomerInteraction {
 		super(HKIDN.Id);
 	}
 
+	snapshot() {
+		return { kind: 'init', state: { syncSystemId: this.syncSystemId } };
+	}
+
 	createSegments(init: FinTSConfig): Segment[] {
 		const segments = [];
 

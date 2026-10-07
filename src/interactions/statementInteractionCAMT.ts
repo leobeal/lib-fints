@@ -20,6 +20,13 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
 		super(HKCAZ.Id, HICAZ.Id);
 	}
 
+	snapshot() {
+		return {
+			kind: 'statementsCamt',
+			state: { account: this.account, from: this.from?.toISOString(), to: this.to?.toISOString() },
+		};
+	}
+
 	createSegments(init: FinTSConfig): Segment[] {
 		const bankAccount = init.getBankAccount(this.account);
 		const version = init.getMaxSupportedTransactionVersion(HKCAZ.Id);

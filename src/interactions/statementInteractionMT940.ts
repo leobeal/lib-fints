@@ -17,6 +17,13 @@ export class StatementInteractionMT940 extends CustomerOrderInteraction {
 		super(HKKAZ.Id, HIKAZ.Id);
 	}
 
+	snapshot() {
+		return {
+			kind: 'statementsMt940',
+			state: { account: this.account, from: this.from?.toISOString(), to: this.to?.toISOString() },
+		};
+	}
+
 	createSegments(init: FinTSConfig): Segment[] {
 		const bankAccount = init.getBankAccount(this.account);
 		const version = init.getMaxSupportedTransactionVersion(HKKAZ.Id);

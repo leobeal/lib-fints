@@ -6,9 +6,11 @@ import {
 	type ClientResponse,
 	type CustomerInteraction,
 	CustomerOrderInteraction,
+	type InteractionSnapshot,
 } from './interactions/customerInteraction.js';
 import { EndDialogInteraction } from './interactions/endDialogInteraction.js';
 import { InitDialogInteraction } from './interactions/initDialogInteraction.js';
+import { restoreInteraction } from './interactions/restore.js';
 import { CustomerMessage, CustomerOrderMessage, type Message } from './message.js';
 import { PARTED, type PartedSegment } from './partedSegment.js';
 import type { SegmentWithContinuationMark } from './segment.js';
@@ -16,6 +18,25 @@ import { decode } from './segment.js';
 import { HKEND } from './segments/HKEND.js';
 import { HKTAN, type HKTANSegment } from './segments/HKTAN.js';
 import { HNHBK, type HNHBKSegment } from './segments/HNHBK.js';
+
+/**
+ * A dialog put away: enough to take it up again in another process, as plain data
+ * that survives JSON.
+ *
+ * It holds no PIN — that comes with the configuration the dialog is restored with —
+ * but it does hold what the waiting interactions carry, a direct debit file
+ * included.
+ */
+export type DialogSnapshot = {
+	dialogId: string;
+	lastMessageNumber: number;
+	isInitialized: boolean;
+	keepOpen: boolean;
+	/** The interaction the bank waits on, then those queued behind it. Empty when nothing waits. */
+	pending: InteractionSnapshot[];
+	/** What to continue the waiting interaction with. */
+	tanReference?: string;
+};
 
 export class Dialog {
 	dialogId: string = '0';
@@ -129,6 +150,71 @@ export class Dialog {
 		this.interactions = [...this.interactions.slice(0, this.currentInteractionIndex), end];
 		await this.advance();
 		this.hasEnded = true;
+	}
+
+	/**
+	 * The dialog as plain data, to be taken up again with `Dialog.restore()` — by a
+	 * process that was stopped while the customer approved an order elsewhere.
+	 */
+	snapshot(): DialogSnapshot {
+		if (this.hasEnded) {
+			throw Error('a dialog that has ended cannot be taken up again');
+		}
+
+		if (!this.isWaiting && !(this.keepOpen && this.isInitialized)) {
+			throw Error('the dialog neither waits for an approval nor is it open');
+		}
+
+		const pending = this.isWaiting
+			? this.interactions
+					.slice(this.currentInteractionIndex)
+					.filter((interaction) => !(interaction instanceof EndDialogInteraction))
+					.map((interaction) => {
+						const snapshot = interaction.snapshot();
+
+						if (!snapshot) {
+							throw Error(`the interaction ${interaction.segId} cannot be taken up again`);
+						}
+
+						return snapshot;
+					})
+			: [];
+
+		return {
+			dialogId: this.dialogId,
+			lastMessageNumber: this.lastMessageNumber,
+			isInitialized: this.isInitialized,
+			keepOpen: this.keepOpen,
+			pending,
+			tanReference: this.isWaiting
+				? this.responses.get(this.currentInteraction.segId)?.tanReference
+				: undefined,
+		};
+	}
+
+	/**
+	 * Takes a dialog up again. The configuration has to be the one it was started
+	 * with: same bank, same user, same system id, same TAN method.
+	 */
+	static restore(config: FinTSConfig, snapshot: DialogSnapshot): Dialog {
+		const dialog = new Dialog(config, false, true);
+
+		dialog.keepOpen = snapshot.keepOpen;
+		dialog.dialogId = snapshot.dialogId;
+		dialog.lastMessageNumber = snapshot.lastMessageNumber;
+		dialog.isInitialized = snapshot.isInitialized;
+		dialog.isWaiting = snapshot.pending.length > 0;
+		dialog.interactions = snapshot.pending.map((pending) => restoreInteraction(config, pending));
+
+		if (!snapshot.keepOpen) {
+			dialog.interactions.push(new EndDialogInteraction());
+		}
+
+		dialog.interactions.forEach((interaction) => {
+			interaction.dialog = dialog;
+		});
+
+		return dialog;
 	}
 
 	/** Initialised at the bank and not ended: further interactions can be run. */

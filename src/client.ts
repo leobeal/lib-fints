@@ -1,6 +1,6 @@
 import { type AccountRef, describeAccount } from './bankAccount.js';
 import { FinTSConfig } from './config.js';
-import { Dialog } from './dialog.js';
+import { Dialog, type DialogSnapshot } from './dialog.js';
 import { readDirectDebitFile } from './directDebitFile.js';
 import {
 	type AccountBalanceResponse,
@@ -375,6 +375,33 @@ export class FinTSClient {
 			tanReference,
 			tan,
 		)) as InitResponse;
+	}
+
+	/**
+	 * The current dialog as plain data, or undefined when there is none worth keeping.
+	 *
+	 * For an app the system may stop while the customer approves an order in the
+	 * banking app: store the snapshot before handing over, and `resume()` with it
+	 * afterwards. The snapshot holds no PIN, but it holds a direct debit file that
+	 * waits for its approval.
+	 */
+	suspend(): DialogSnapshot | undefined {
+		const dialog = this.currentDialog;
+
+		if (!dialog || dialog.hasEnded || (!dialog.isWaiting && !this.isLoggedIn)) {
+			return undefined;
+		}
+
+		return dialog.snapshot();
+	}
+
+	/**
+	 * Takes up a dialog stored with `suspend()`. The client has to be configured as
+	 * the one that started it. A transaction that waited is then continued with its
+	 * `...WithTan()` method and the snapshot's `tanReference`.
+	 */
+	resume(snapshot: DialogSnapshot): void {
+		this.currentDialog = Dialog.restore(this.config, snapshot);
 	}
 
 	/** A dialog opened with `login()` is open and can take a transaction. */
