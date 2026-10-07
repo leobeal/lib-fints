@@ -1,6 +1,7 @@
 import { decodeElements } from './decoder.js';
 import { SegmentDefinition } from './segmentDefinition.js';
 import type { SegmentHeader } from './segmentHeader.js';
+import { BusinessTransactionParameter } from './segments/businessTransactionParameter.js';
 import { getSegmentDefinition } from './segments/registry.js';
 import { type UnknownSegment, UnkownId } from './unknownSegment.js';
 
@@ -31,13 +32,31 @@ export function decode(text: string): Segment {
 		};
 	}
 
-	let data = decodeElements(
-		contentText,
-		definition.elements,
-		'+',
-		header.version,
-		header.segId,
-	) as Segment;
+	let data: Segment;
+
+	try {
+		data = decodeElements(
+			contentText,
+			definition.elements,
+			'+',
+			header.version,
+			header.segId,
+		) as Segment;
+	} catch (error) {
+		// Parameter segments describe orders the customer may never place, and they
+		// arrive by the dozen with every login. One the bank filled in unexpectedly is
+		// kept unread — its version still counts — rather than failing the message and
+		// with it the login.
+		if (definition instanceof BusinessTransactionParameter) {
+			return <UnknownSegment>{
+				header: { ...header, segId: UnkownId },
+				originalId: header.segId,
+				rawData: contentText,
+			};
+		}
+
+		throw error;
+	}
 
 	data.header = header;
 
