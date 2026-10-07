@@ -23,12 +23,20 @@ export class Dialog {
 	responses: Map<string, ClientResponse> = new Map();
 	currentInteractionIndex = 0;
 	isInitialized = false;
+	/** The current interaction was sent and the bank waits for a TAN or an approval. */
+	isWaiting = false;
 	hasEnded = false;
 	httpClient: HttpClient;
 
+	/**
+	 * @param keepOpen leaves the dialog open once its interactions are through, so that
+	 * further ones can follow with `run()`; it then lasts until `end()`. Without it the
+	 * dialog ends itself after the last interaction.
+	 */
 	constructor(
 		public config: FinTSConfig,
 		syncSystemId: boolean = false,
+		public keepOpen: boolean = false,
 	) {
 		if (!this.config) {
 			throw new Error('configuration must be provided');
@@ -36,7 +44,10 @@ export class Dialog {
 
 		this.httpClient = this.getHttpClient();
 		this.interactions.push(new InitDialogInteraction(this.config, syncSystemId));
-		this.interactions.push(new EndDialogInteraction());
+
+		if (!keepOpen) {
+			this.interactions.push(new EndDialogInteraction());
+		}
 		this.interactions.forEach((interaction) => {
 			interaction.dialog = this;
 		});
@@ -59,32 +70,7 @@ export class Dialog {
 			throw new Error('dialog start can only be called on a new dialog');
 		}
 
-		let clientResponse: ClientResponse;
-
-		do {
-			const message = this.createCurrentCustomerMessage();
-			const responseMessage = await this.httpClient.sendMessage(message);
-			await this.handlePartedMessages(message, responseMessage, this.currentInteraction);
-			clientResponse = this.currentInteraction.handleClientResponse(responseMessage);
-			this.checkEnded(clientResponse);
-			this.dialogId = clientResponse.dialogId;
-			this.responses.set(this.currentInteraction.segId, clientResponse);
-
-			if (clientResponse.success && !clientResponse.requiresTan) {
-				this.currentInteractionIndex++;
-
-				if (this.currentInteractionIndex > 0) {
-					this.isInitialized = true;
-				}
-			}
-		} while (
-			!this.hasEnded &&
-			this.currentInteractionIndex < this.interactions.length &&
-			clientResponse.success &&
-			!clientResponse.requiresTan
-		);
-
-		return this.responses;
+		return await this.advance();
 	}
 
 	async continue(tanOrderReference: string, tan?: string): Promise<Map<string, ClientResponse>> {
@@ -104,20 +90,69 @@ export class Dialog {
 			throw new Error('there is no running customer interaction in this dialog to continue');
 		}
 
-		let clientResponse: ClientResponse;
+		return await this.advance(this.createCurrentTanMessage(tanOrderReference, tan));
+	}
 
-		let isFirstMessage = true;
+	/**
+	 * Carries out a further interaction in a dialog that was kept open.
+	 */
+	async run(interaction: CustomerInteraction): Promise<Map<string, ClientResponse>> {
+		if (!this.isOpen) {
+			throw Error('an interaction can only be run in an open dialog');
+		}
+
+		if (this.isWaiting) {
+			throw Error('the dialog still waits for a TAN or an approval for its current interaction');
+		}
+
+		// An interaction the bank refused stays current; it is not sent again.
+		this.interactions.length = this.currentInteractionIndex;
+
+		this.addCustomerInteraction(interaction);
+		return await this.advance();
+	}
+
+	/**
+	 * Ends a dialog that was kept open. An interaction still waiting for a TAN is
+	 * given up with it.
+	 */
+	async end(): Promise<void> {
+		// A dialog the bank never opened has nothing to end.
+		if (this.hasEnded || this.dialogId === '0') {
+			this.hasEnded = true;
+			return;
+		}
+
+		const end = new EndDialogInteraction();
+		end.dialog = this;
+		this.interactions = [...this.interactions.slice(0, this.currentInteractionIndex), end];
+		await this.advance();
+		this.hasEnded = true;
+	}
+
+	/** Initialised at the bank and not ended: further interactions can be run. */
+	get isOpen(): boolean {
+		return this.isInitialized && !this.hasEnded;
+	}
+
+	/**
+	 * Sends the current interaction and every one after it, until the bank asks for a
+	 * TAN, refuses, or nothing is left.
+	 */
+	private async advance(firstMessage?: CustomerMessage): Promise<Map<string, ClientResponse>> {
+		let clientResponse: ClientResponse;
+		let message = firstMessage;
 
 		do {
-			const message = isFirstMessage
-				? this.createCurrentTanMessage(tanOrderReference, tan)
-				: this.createCurrentCustomerMessage();
+			message ??= this.createCurrentCustomerMessage();
 			const responseMessage = await this.httpClient.sendMessage(message);
 			await this.handlePartedMessages(message, responseMessage, this.currentInteraction);
+			message = undefined;
 			clientResponse = this.currentInteraction.handleClientResponse(responseMessage);
 			this.checkEnded(clientResponse);
 			this.dialogId = clientResponse.dialogId;
 			this.responses.set(this.currentInteraction.segId, clientResponse);
+			this.isWaiting = clientResponse.requiresTan;
 
 			if (clientResponse.success && !clientResponse.requiresTan) {
 				this.currentInteractionIndex++;
@@ -126,8 +161,6 @@ export class Dialog {
 					this.isInitialized = true;
 				}
 			}
-
-			isFirstMessage = false;
 		} while (
 			!this.hasEnded &&
 			this.currentInteractionIndex < this.interactions.length &&
@@ -158,7 +191,9 @@ export class Dialog {
 			return;
 		}
 
-		this.interactions.splice(this.interactions.length - 1, 0, interaction);
+		// Before the end of the dialog, where it has one.
+		const hasEnd = this.interactions.at(-1) instanceof EndDialogInteraction;
+		this.interactions.splice(this.interactions.length - (hasEnd ? 1 : 0), 0, interaction);
 	}
 
 	private createCurrentCustomerMessage(): CustomerMessage {

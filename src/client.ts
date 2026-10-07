@@ -339,12 +339,91 @@ export class FinTSClient {
 		)) as ElectronicStatementResponse;
 	}
 
+	/**
+	 * Opens a dialog with the bank and keeps it open: every transaction that follows
+	 * runs in it, until `logout()`.
+	 *
+	 * Without it each transaction opens and ends a dialog of its own, which is all a
+	 * caller needs who only reads. It is for the caller who has something to do
+	 * between the login and the order — sending a file only once the bank has
+	 * accepted the PIN, and recording that it is about to be sent before it is.
+	 *
+	 * @returns the response to the dialog initialisation; `requiresTan` means the bank
+	 * wants the login itself approved, continue with `loginWithTan()`
+	 */
+	async login(): Promise<InitResponse> {
+		this.currentDialog = new Dialog(this.config, false, true);
+		const responses = await this.currentDialog.start();
+		return this.lastResponse(responses, [HKIDN.Id]) as InitResponse;
+	}
+
+	/**
+	 * Continues the login when a TAN is required
+	 * @param tanReference The TAN reference provided in the first call's response
+	 * @param tan The TAN entered by the user, can be omitted if a decoupled TAN method is used
+	 */
+	async loginWithTan(tanReference: string, tan?: string): Promise<InitResponse> {
+		return (await this.continueCustomerInteractionWithTan(
+			[HKIDN.Id],
+			tanReference,
+			tan,
+		)) as InitResponse;
+	}
+
+	/** A dialog opened with `login()` is open and can take a transaction. */
+	get isLoggedIn(): boolean {
+		return !!this.currentDialog?.keepOpen && this.currentDialog.isOpen;
+	}
+
+	/**
+	 * Ends the dialog opened with `login()`. A transaction still waiting for a TAN is
+	 * given up with it. A bank that cannot be reached is not an error here: it drops
+	 * a dialog nobody ends on its own.
+	 */
+	async logout(): Promise<void> {
+		const dialog = this.currentDialog;
+		this.currentDialog = undefined;
+
+		if (!dialog?.keepOpen) {
+			return;
+		}
+
+		try {
+			await dialog.end();
+		} catch {
+			// see above
+		}
+	}
+
+	private lastResponse(responses: Map<string, ClientResponse>, segIds: string[]): ClientResponse {
+		for (const segId of segIds) {
+			const response = responses.get(segId);
+			if (response) {
+				return response;
+			}
+		}
+
+		const lastResponse = [...responses.values()].at(-1);
+		if (!lastResponse) {
+			throw new Error(`No response received for customer interaction '${segIds.join(', ')}'`);
+		}
+		return lastResponse;
+	}
+
 	private async startCustomerOrderInteraction(
 		interaction: CustomerOrderInteraction,
 	): Promise<ClientResponse> {
-		this.currentDialog = new Dialog(this.config, false);
-		this.currentDialog.addCustomerInteraction(interaction);
-		const responses = await this.currentDialog.start();
+		let responses: Map<string, ClientResponse>;
+
+		if (this.isLoggedIn && this.currentDialog) {
+			// An earlier transaction's answer must not be taken for this one's.
+			this.currentDialog.responses.delete(interaction.segId);
+			responses = await this.currentDialog.run(interaction);
+		} else {
+			this.currentDialog = new Dialog(this.config, false);
+			this.currentDialog.addCustomerInteraction(interaction);
+			responses = await this.currentDialog.start();
+		}
 
 		const response = responses.get(interaction.segId);
 		if (response) {

@@ -18,6 +18,7 @@ export type {
 	ElectronicStatementOptions,
 	ElectronicStatementResponse,
 } from './interactions/electronicStatementInteraction.js';
+export type { InitResponse } from './interactions/initDialogInteraction.js';
 export type { PortfolioResponse } from './interactions/portfolioInteraction.js';
 export * from './message.js';
 export * from './mt535parser.js';
