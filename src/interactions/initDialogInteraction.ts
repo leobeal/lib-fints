@@ -120,7 +120,9 @@ export class InitDialogInteraction extends CustomerInteraction {
 			const hikom = response.findSegment<HIKOMSegment>(HIKOM.Id);
 			if (hikom) {
 				bankingUrl = hikom?.comParams.address;
-				if (!bankingUrl.toLowerCase().startsWith('https://')) {
+				// Banks announce their address with or without the scheme; one that names
+				// a scheme is taken at its word.
+				if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(bankingUrl)) {
 					bankingUrl = `https://${bankingUrl}`;
 				}
 			}
