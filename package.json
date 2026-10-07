@@ -16,6 +16,10 @@
 			"import": {
 				"types": "./dist/types/index.d.ts",
 				"default": "./dist/index.js"
+			},
+			"default": {
+				"types": "./dist/types/index.d.ts",
+				"default": "./dist/index.js"
 			}
 		}
 	},
