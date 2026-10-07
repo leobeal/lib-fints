@@ -1,3 +1,4 @@
+import { BankExchangeError } from './bankExchangeError.js';
 import { TanMediaRequirement, TanProcess } from './codes.js';
 import type { FinTSConfig } from './config.js';
 import { HttpClient } from './httpClient.js';
@@ -146,9 +147,19 @@ export class Dialog {
 		do {
 			message ??= this.createCurrentCustomerMessage();
 			const responseMessage = await this.httpClient.sendMessage(message);
-			await this.handlePartedMessages(message, responseMessage, this.currentInteraction);
+
+			// The message is out. Whatever goes wrong from here must not look like an
+			// error from before it was sent.
+			try {
+				await this.handlePartedMessages(message, responseMessage, this.currentInteraction);
+				clientResponse = this.currentInteraction.handleClientResponse(responseMessage);
+			} catch (cause) {
+				throw cause instanceof BankExchangeError
+					? cause
+					: new BankExchangeError('The answer of the bank could not be read', 'answer', { cause });
+			}
+
 			message = undefined;
-			clientResponse = this.currentInteraction.handleClientResponse(responseMessage);
 			this.checkEnded(clientResponse);
 			this.dialogId = clientResponse.dialogId;
 			this.responses.set(this.currentInteraction.segId, clientResponse);

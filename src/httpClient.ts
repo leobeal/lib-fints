@@ -1,3 +1,4 @@
+import { BankExchangeError } from './bankExchangeError.js';
 import { base64ToBinary, binaryToBase64 } from './bytes.js';
 import { type CustomerMessage, type CustomerOrderMessage, Message } from './message.js';
 
@@ -21,15 +22,21 @@ export class HttpClient {
 			}
 		}
 
-		const response = await fetch(this.url, {
-			method: 'POST',
-			headers: { 'Content-Type': 'text/plain' },
-			body: binaryToBase64(encodedMessage),
-		});
+		let response: Response;
+		let responseText: string;
+
+		try {
+			response = await fetch(this.url, {
+				method: 'POST',
+				headers: { 'Content-Type': 'text/plain' },
+				body: binaryToBase64(encodedMessage),
+			});
+			responseText = response.ok ? base64ToBinary(await response.text()) : '';
+		} catch (cause) {
+			throw new BankExchangeError('The bank could not be reached', 'connection', { cause });
+		}
 
 		if (response.ok) {
-			const responseText = base64ToBinary(await response.text());
-
 			try {
 				const customerOrderMessage = message as CustomerOrderMessage;
 				const responseMessage = Message.decode(
@@ -51,10 +58,15 @@ export class HttpClient {
 			} catch (error) {
 				console.error('Error decoding response message:', error);
 				console.error('Response Message Content:\n', responseText.split("'").join('\n'));
-				throw error;
+				throw new BankExchangeError('The answer of the bank could not be read', 'answer', {
+					cause: error,
+				});
 			}
 		} else {
-			throw Error(`Request failed with status code ${response.status}: ${await response.text()}`);
+			throw new BankExchangeError(
+				`Request failed with status code ${response.status}`,
+				'connection',
+			);
 		}
 	}
 }

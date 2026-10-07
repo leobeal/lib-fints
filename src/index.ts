@@ -5,6 +5,7 @@ registerSegments();
 export * from './accountBalance.js';
 export * from './bankAccount.js';
 export * from './bankAnswer.js';
+export * from './bankExchangeError.js';
 export * from './bankingInformation.js';
 export * from './bpd.js';
 export * from './client.js';

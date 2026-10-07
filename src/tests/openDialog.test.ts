@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest';
+import { BankExchangeError } from '../bankExchangeError.js';
 import type { BankingInformation } from '../bankingInformation.js';
 import type { BPD } from '../bpd.js';
 import { FinTSConfig } from '../config.js';
@@ -169,5 +170,32 @@ describe('a dialog that is kept open', () => {
 
 		expect(send).not.toHaveBeenCalled();
 		expect(dialog.hasEnded).toBe(true);
+	});
+
+	it('says so when an order was sent and its answer could not be read', async () => {
+		await dialog.start();
+		const order = new Order([]);
+		order.handleClientResponse.mockImplementation(() => {
+			throw new Error('HITAN segment not found');
+		});
+
+		const error = await dialog.run(order).catch((e) => e);
+
+		expect(error).toBeInstanceOf(BankExchangeError);
+		expect(error.stage).toBe('answer');
+		expect(send).toHaveBeenCalledTimes(2);
+	});
+
+	it('throws an ordinary error when an order could not be built, and sends nothing', async () => {
+		await dialog.start();
+		const order = new Order([]);
+		order.createSegments = () => {
+			throw new Error('the bank does not support the schema');
+		};
+
+		const error = await dialog.run(order).catch((e) => e);
+
+		expect(error).not.toBeInstanceOf(BankExchangeError);
+		expect(send).toHaveBeenCalledTimes(1);
 	});
 });
