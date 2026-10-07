@@ -1,4 +1,5 @@
 import type { BankAnswer } from '../bankAnswer.js';
+import { fromBytes } from '../bytes.js';
 import type { FinTSConfig } from '../config.js';
 import type { Dialog } from '../dialog.js';
 import type { Message } from '../message.js';
@@ -79,7 +80,7 @@ export abstract class CustomerInteraction {
 		offset += 2;
 		const count = parseInt(countAsString, 10);
 		const mimeTypeArray = bytes.slice(offset, offset + count);
-		const mimeType = new TextDecoder('iso-8859-1').decode(mimeTypeArray);
+		const mimeType = fromBytes(mimeTypeArray);
 		offset += count;
 		// image size is 2 bytes, little endian
 		const hi = bytes[offset];

@@ -1,3 +1,4 @@
+import { base64ToBinary, binaryToBase64 } from './bytes.js';
 import { type CustomerMessage, type CustomerOrderMessage, Message } from './message.js';
 
 export class HttpClient {
@@ -9,7 +10,6 @@ export class HttpClient {
 
 	async sendMessage(message: CustomerMessage): Promise<Message> {
 		const encodedMessage = message.encode();
-		const requestBuffer = Buffer.from(encodedMessage, 'latin1');
 
 		if (this.debug) {
 			console.log('Request Message:\n');
@@ -24,12 +24,11 @@ export class HttpClient {
 		const response = await fetch(this.url, {
 			method: 'POST',
 			headers: { 'Content-Type': 'text/plain' },
-			body: requestBuffer.toString('base64'),
+			body: binaryToBase64(encodedMessage),
 		});
 
 		if (response.ok) {
-			const responseBuffer = Buffer.from(await response.text(), 'base64');
-			const responseText = responseBuffer.toString('latin1');
+			const responseText = base64ToBinary(await response.text());
 
 			try {
 				const customerOrderMessage = message as CustomerOrderMessage;

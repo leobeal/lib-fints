@@ -1,5 +1,6 @@
 import { internationalAccount, nationalAccount } from '../accountDescriptor.js';
 import type { AccountRef } from '../bankAccount.js';
+import { base64ToBinary, fromBytes, toBytes } from '../bytes.js';
 import type { FinTSConfig } from '../config.js';
 import type { ElectronicStatement } from '../electronicStatement.js';
 import type { Message } from '../message.js';
@@ -30,17 +31,6 @@ export interface ElectronicStatementOptions {
 	offset?: string;
 }
 
-/**
- * Turns the latin1 string the parser produced back into the bytes the bank sent.
- */
-function toBytes(binary: string): Uint8Array {
-	const bytes = new Uint8Array(binary.length);
-	for (let i = 0; i < binary.length; i++) {
-		bytes[i] = binary.charCodeAt(i) & 0xff;
-	}
-	return bytes;
-}
-
 const PDF_MAGIC = '%PDF';
 
 /**
@@ -52,17 +42,15 @@ const PDF_MAGIC = '%PDF';
  * Anything else is passed through untouched, so a document is never silently mangled.
  */
 function unwrapBase64(bytes: Uint8Array): Uint8Array {
-	const text = new TextDecoder('latin1').decode(bytes);
+	const text = fromBytes(bytes);
 
 	if (text.startsWith(PDF_MAGIC) || !/^[A-Za-z0-9+/\s]+={0,2}\s*$/.test(text)) {
 		return bytes;
 	}
 
 	try {
-		const decoded = Buffer.from(text, 'base64');
-		return decoded.subarray(0, PDF_MAGIC.length).toString('latin1') === PDF_MAGIC
-			? new Uint8Array(decoded)
-			: bytes;
+		const decoded = base64ToBinary(text);
+		return decoded.startsWith(PDF_MAGIC) ? toBytes(decoded) : bytes;
 	} catch {
 		return bytes;
 	}

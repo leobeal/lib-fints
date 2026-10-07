@@ -1,5 +1,6 @@
 import { internationalAccount } from '../accountDescriptor.js';
 import type { AccountRef } from '../bankAccount.js';
+import { binaryToUtf8 } from '../bytes.js';
 import { CamtParser } from '../camtParser.js';
 import type { FinTSConfig } from '../config.js';
 import type { Message } from '../message.js';
@@ -68,10 +69,9 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
 
 					let xmlString: string = camtMessage;
 					if (isUtf8Encoded) {
-						// camtMessage is initially encoded as 'latin1' (ISO-8859-1), but actually contains UTF-8 data.
-						// Therefore, we need to first convert it back to a buffer using 'latin1', and then decode it as 'utf8'.
-						const intermediateBuffer = Buffer.from(camtMessage, 'latin1');
-						xmlString = intermediateBuffer.toString('utf8');
+						// The parser keeps one character per byte, so a UTF-8 document arrives
+						// with every multi-byte character split up.
+						xmlString = binaryToUtf8(camtMessage);
 					}
 
 					const parser = new CamtParser(xmlString);
