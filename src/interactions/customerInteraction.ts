@@ -38,6 +38,18 @@ export interface ClientResponse {
 
 export interface StatementResponse extends ClientResponse {
 	statements: Statement[];
+	/**
+	 * The format the bank answered in. Absent on answers that carry no account
+	 * statement of either kind, such as credit card statements.
+	 */
+	format?: 'camt' | 'mt940';
+	/**
+	 * What the bank sent, as text and before any parsing: one camt document per entry,
+	 * or the MT940 stream as a single entry. For a caller that hands the statements on
+	 * to a system with a parser of its own, which `statements` cannot serve — it keeps
+	 * only the fields this library reads.
+	 */
+	documents?: string[];
 }
 
 export abstract class CustomerInteraction {

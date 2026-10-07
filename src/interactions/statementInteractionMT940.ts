@@ -49,6 +49,9 @@ export class StatementInteractionMT940 extends CustomerOrderInteraction {
 			.filter((booked) => !!booked)
 			.join('');
 
+		clientResponse.format = 'mt940';
+		clientResponse.documents = bookedTransactions ? [bookedTransactions] : [];
+
 		if (bookedTransactions) {
 			try {
 				const parser = new Mt940Parser(bookedTransactions);

@@ -57,6 +57,9 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
 			.findAllSegments<HICAZSegment>(HICAZ.Id)
 			.flatMap((segment) => segment.bookedTransactions ?? []);
 
+		clientResponse.format = 'camt';
+		clientResponse.documents = [];
+
 		if (camtMessages.length > 0) {
 			try {
 				// Parse all CAMT messages (one per booking day) and combine statements
@@ -73,6 +76,10 @@ export class StatementInteractionCAMT extends CustomerOrderInteraction {
 						// with every multi-byte character split up.
 						xmlString = binaryToUtf8(camtMessage);
 					}
+
+					// Kept before parsing: a document this library cannot read is still the
+					// bank's answer, and the caller may have a parser that can.
+					clientResponse.documents.push(xmlString);
 
 					const parser = new CamtParser(xmlString);
 					const statements = parser.parse();
