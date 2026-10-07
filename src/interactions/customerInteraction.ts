@@ -108,11 +108,17 @@ export abstract class CustomerInteraction {
 		const dialogId = hnhbk?.dialogId ?? '';
 		const bankAnswers = response.getBankAnswers();
 
+		// A refusal outranks a request for a TAN. A bank that answers an order with
+		// both has refused it, and asking the customer to approve it anyway would end
+		// in an accepted TAN that reads like an accepted order.
+		const refused = response.getHighestReturnCode() >= 9000;
+
 		if (
-			response.hasReturnCode(30) ||
-			response.hasReturnCode(3955) ||
-			response.hasReturnCode(3956) ||
-			response.hasReturnCode(3957)
+			!refused &&
+			(response.hasReturnCode(30) ||
+				response.hasReturnCode(3955) ||
+				response.hasReturnCode(3956) ||
+				response.hasReturnCode(3957))
 		) {
 			const hitan = response.findSegment<HITANSegment>(HITAN.Id);
 			if (hitan) {
