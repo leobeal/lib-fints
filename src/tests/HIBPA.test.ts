@@ -23,6 +23,15 @@ describe('HIBPA', () => {
 		expect(segment.supportedHbciVersions[1]).toBe(300);
 	});
 
+	it('reads the message size and the timeouts a bank announces', () => {
+		const text = "HIBPA:4:3:3+12+280:12030000+Bank+3+1+300+500+30+600'";
+		const segment = decode(text) as HIBPASegment;
+
+		expect(segment.maxMessageSizeInKb).toBe(500);
+		expect(segment.minTimeoutSecs).toBe(30);
+		expect(segment.maxTimeoutSecs).toBe(600);
+	});
+
 	it('decode and encode roundtrip matches', () => {
 		HIBPA.Id;
 

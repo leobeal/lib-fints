@@ -10,6 +10,11 @@ export type BPD = {
 	maxTransactionsPerMessage: number;
 	supportedLanguages: Language[];
 	supportedHbciVersions: number[];
+	/** Largest message the bank accepts, in kilobytes; absent or 0 when it names no limit. */
+	maxMessageSizeInKb?: number;
+	/** The shortest and longest time, in seconds, the bank announces for a dialog left idle; absent when it names none. */
+	minTimeoutSecs?: number;
+	maxTimeoutSecs?: number;
 	url?: string;
 	supportedTanMethods: TanMethod[];
 	availableTanMethodIds: number[];
