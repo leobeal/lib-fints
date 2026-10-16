@@ -27,6 +27,7 @@ export type {
 	ScheduledDirectDebit,
 	ScheduledDirectDebitsResponse,
 } from './interactions/scheduledDirectDebitsInteraction.js';
+export type { TanMediaResponse } from './interactions/tanMediaInteraction.js';
 export * from './message.js';
 export * from './mt535parser.js';
 export * from './mt940parser.js';

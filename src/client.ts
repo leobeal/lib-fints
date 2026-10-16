@@ -33,6 +33,7 @@ import {
 } from './interactions/scheduledDirectDebitsInteraction.js';
 import { StatementInteractionCAMT } from './interactions/statementInteractionCAMT.js';
 import { StatementInteractionMT940 } from './interactions/statementInteractionMT940.js';
+import { TanMediaInteraction, type TanMediaResponse } from './interactions/tanMediaInteraction.js';
 import { DKKKU } from './segments/DKKKU.js';
 import { HKBME, HKBSE, HKDME, HKDSE } from './segments/directDebit.js';
 import { HKCAZ } from './segments/HKCAZ.js';
@@ -40,6 +41,7 @@ import { HKEKA } from './segments/HKEKA.js';
 import { HKIDN } from './segments/HKIDN.js';
 import { HKKAZ } from './segments/HKKAZ.js';
 import { HKSAL } from './segments/HKSAL.js';
+import { HKTAB } from './segments/HKTAB.js';
 import { HKWPD } from './segments/HKWPD.js';
 import { HKDMB } from './segments/scheduledDirectDebits.js';
 import type { TanMethod } from './tanMethod.js';
@@ -91,6 +93,42 @@ export class FinTSClient {
 		this.currentDialog = new Dialog(this.config, true);
 		const responses = await this.currentDialog.start();
 		return responses.get(HKIDN.Id) as SynchronizeResponse;
+	}
+
+	/**
+	 * Checks if the bank lists the TAN media of its customers (HKTAB)
+	 * @returns true if the bank supports listing TAN media
+	 */
+	canGetTanMedia(): boolean {
+		return this.config.isTransactionSupported(HKTAB.Id);
+	}
+
+	/**
+	 * Fetches the names of the TAN media for the selected TAN method: the device an
+	 * approval goes to, which a bank whose method requires a medium wants named in
+	 * every order. Such a bank refuses a dialog that names none, or one it does not
+	 * know, so the names have to be fetched before the first order.
+	 *
+	 * This runs in a dialog of its own whose HKTAN refers to HKTAB and names no
+	 * medium, which banks accept without an approval. The names are kept on the
+	 * selected TAN method as well, so `selectTanMedia()` accepts them afterwards.
+	 *
+	 * @returns a response with the names in `tanMediaList`, empty when the bank names none
+	 */
+	async getTanMedia(): Promise<TanMediaResponse> {
+		if (!this.config.selectedTanMethod) {
+			throw Error('a TAN method has to be selected before its TAN media can be fetched');
+		}
+
+		const dialog = new Dialog(this.config, true);
+		dialog.readsTanMedia = true;
+		dialog.addCustomerInteraction(new TanMediaInteraction());
+		this.currentDialog = dialog;
+
+		const responses = await dialog.start();
+		const response = (responses.get(HKTAB.Id) ?? responses.get(HKIDN.Id)) as TanMediaResponse;
+		response.tanMediaList ??= [];
+		return response;
 	}
 
 	/**

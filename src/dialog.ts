@@ -16,6 +16,7 @@ import { PARTED, type PartedSegment } from './partedSegment.js';
 import type { SegmentWithContinuationMark } from './segment.js';
 import { decode } from './segment.js';
 import { HKEND } from './segments/HKEND.js';
+import { HKTAB } from './segments/HKTAB.js';
 import { HKTAN, type HKTANSegment } from './segments/HKTAN.js';
 import { HNHBK, type HNHBKSegment } from './segments/HNHBK.js';
 
@@ -48,6 +49,11 @@ export class Dialog {
 	/** The current interaction was sent and the bank waits for a TAN or an approval. */
 	isWaiting = false;
 	hasEnded = false;
+	/**
+	 * Only reads the TAN media: the dialog is opened for HKTAB and names no medium,
+	 * since it is how the names are learnt. See `FinTSClient.getTanMedia()`.
+	 */
+	readsTanMedia = false;
 	httpClient: HttpClient;
 
 	/**
@@ -338,7 +344,10 @@ export class Dialog {
 			const hktan: HKTANSegment = {
 				header: { segId: HKTAN.Id, segNr: 0, version: tanMethod?.version ?? 0 },
 				tanProcess: TanProcess.Process4,
-				segId: this.currentInteraction.segId,
+				segId:
+					this.readsTanMedia && this.currentInteraction instanceof InitDialogInteraction
+						? HKTAB.Id
+						: this.currentInteraction.segId,
 				tanMedia: this.getTanMediaName(),
 			};
 
@@ -382,6 +391,10 @@ export class Dialog {
 	}
 
 	private getTanMediaName(): string | undefined {
+		if (this.readsTanMedia) {
+			return undefined;
+		}
+
 		const requirement =
 			this.config.selectedTanMethod?.tanMediaRequirement ?? TanMediaRequirement.NotAllowed;
 

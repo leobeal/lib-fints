@@ -238,6 +238,7 @@ export class InitDialogInteraction extends CustomerInteraction {
 		if (
 			this.config.selectedTanMethod &&
 			this.config.selectedTanMethod.tanMediaRequirement > TanMediaRequirement.NotAllowed &&
+			!this.dialog?.readsTanMedia &&
 			this.config.isTransactionSupported(HKTAB.Id)
 		) {
 			this.dialog?.addCustomerInteraction(new TanMediaInteraction(), true);

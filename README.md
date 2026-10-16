@@ -179,6 +179,17 @@ The `TanMethod` object contains a property `tanMediaRequirement` and if this is 
 
 The property `activeTanMedia` contains a list of the TAN media names you can use for selection.
 
+A bank that requires a TAN media refuses every dialog that names none, or names one it does not know, so the names have to be known before the first transaction with the method. `client.getTanMedia()` fetches them in a dialog of its own that names no medium and needs no approval, and keeps them in `activeTanMedia`:
+
+```typescript
+client.selectTanMethod(tanMethodId);
+if (client.config.selectedTanMethod?.tanMediaRequirement === 2) { // required
+  const { tanMediaList } = await client.getTanMedia();
+  client.selectTanMedia(tanMediaList[0]); // or let the user choose
+}
+const response = await client.synchronize();
+```
+
 #### Banking Information may be updated any time
 
 The `bankingInformation` is primarily obtained through the `synchronize()` calls as demonstrated above. However, it is possible that the banking information may have changed since the last synchronization call. To address this, the BPD and UPD are versioned, and with every transaction made, not just synchronizations, the currently used versions are provided to the bank. If any changes have occurred, the bank will send back new versions of the BPD and UPD respectively. This process is managed by the client, but it is essential to check the `bankingInformationUpdated` property, which is available in every response. This property indicates if there have been any changes, and it is important to persist the new version for future sessions. The most up-to-date version of the `bankingInformation` object can always be retrieved using `config.bankingInformation`.
@@ -208,6 +219,7 @@ The following table shows all transactions supported by the FinTSClient interfac
 | **SEPA Direct Debit**      | `sendDirectDebit(account: AccountRef, painXml, options?)`             | Submits a pain.008 file of direct debits, single or collective, CORE/COR1 or B2B | HKDSE, HKDME, HKBSE, HKBME | ✓           | ✓                |
 | **TAN Method Selection**   | `selectTanMethod(tanMethodId)`                                       | Selects a TAN method by ID from available methods                               | -                          | ❌          | ❌               |
 | **TAN Media Selection**    | `selectTanMedia(tanMediaName)`                                       | Selects a specific TAN media device by name                                     | -                          | ❌          | ❌               |
+| **TAN Media List**         | `getTanMedia()`                                                      | Fetches the names of the TAN media of the selected TAN method                   | HKTAB                      | ❌          | ❌               |
 
 ### Transaction Support Checking
 
